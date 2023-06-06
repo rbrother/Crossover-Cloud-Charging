@@ -12,16 +12,19 @@
   (if (> n 0)
     (run-times (dec n) fn)))
 
+(defn reset [url]
+  (let [response (client/post url)
+        res (Integer/parseInt (:body response))]
+    (println res)
+    res))
+
 (defn reset-redis []
   (println "------------ reset redis --------------")
-  (let [response (client/post (str redis-api-base "/reset-redis"))]
-    (Integer/parseInt (:body response))))
+  (reset (str redis-api-base "/reset-redis")))
 
 (defn reset-memcached []
   (println "------------ reset memcached --------------")
-  (let [response (client/post (str memcached-api-base "/reset-memcached"))]
-    (println (:body response))
-    #_(Integer/parseInt (:body response))))
+  (reset (str memcached-api-base "/reset-memcached")))
 
 (defn charge-request [url service-type unit ]
   (let [body (j/write-value-as-string
@@ -48,7 +51,7 @@
   (run-times 5 #(charge-request-redis "voice" 2)))
 
 (defn test-memcached []
-  (reset-memcached) ;; TODO: Fix to verify 100 when fixed lambdaadm.adm
+  (assert (= (reset-memcached) 100))
   (run-times 5 #(charge-request-memcached "voice" 2)))
 
 (test-redis)

@@ -8,11 +8,13 @@ const memcachedClient = new memcached(`${process.env.ENDPOINT}:${process.env.POR
 
 exports.resetMemcached = async function () {
     var ret = new Promise((resolve, reject) => {
-        memcachedClient.set(KEY, DEFAULT_BALANCE, MAX_EXPIRATION, (res, error) => {
-            if (error)
-                resolve(res)
-            else
-                reject(DEFAULT_BALANCE)
+        memcachedClient.set(KEY, DEFAULT_BALANCE, MAX_EXPIRATION, (error, res) => {
+            if (error) {
+                reject(error)
+            }
+            else {
+                resolve(DEFAULT_BALANCE)
+            }
         })
     })
     return ret
