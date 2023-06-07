@@ -7,22 +7,23 @@ const DEFAULT_BALANCE = 100
 
 exports.chargeRequestRedis = async function (input) {
     const redisClient = await getRedisClient()
-    var remainingBalance = await getBalanceRedis(redisClient, KEY)
     var charges = getCharges()
-    const isAuthorized = authorizeRequest(remainingBalance, charges)
-    if (!isAuthorized) {
+    var remainingBalance = await chargeRedis(redisClient, KEY, charges)
+    if (remainingBalance >= 0) {
+        await disconnectRedis(redisClient)
         return {
             remainingBalance,
-            isAuthorized,
-            charges: 0,
+            charges,
+            isAuthorized: true
         }
     }
-    remainingBalance = await chargeRedis(redisClient, KEY, charges)
-    await disconnectRedis(redisClient)
+    // Account went negative: undo decrement and reject request
+    remainingBalance = await undoChargeRedis(redisClient, KEY, charges)
     return {
-        remainingBalance,
-        charges,
-        isAuthorized,
+        // No need to show transient negative values
+        remainingBalance : remainingBalance < 0 ? 0 : remainingBalance,
+        charges : 0,
+        isAuthorized : false
     }
 }
 
@@ -61,19 +62,14 @@ async function disconnectRedis(client) {
     })
 }
 
-function authorizeRequest(remainingBalance, charges) {
-    return remainingBalance >= charges
-}
-
 function getCharges() {
     return DEFAULT_BALANCE / 20
 }
 
-async function getBalanceRedis(redisClient, key) {
-    const res = await util.promisify(redisClient.get).bind(redisClient).call(redisClient, key)
-    return parseInt(res || "0")
-}
-
 async function chargeRedis(redisClient, key, charges) {
     return util.promisify(redisClient.decrby).bind(redisClient).call(redisClient, key, charges)
+}
+
+async function undoChargeRedis(redisClient, key, charges) {
+    return util.promisify(redisClient.incrby).bind(redisClient).call(redisClient, key, charges)
 }

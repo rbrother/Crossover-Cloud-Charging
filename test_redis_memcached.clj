@@ -18,7 +18,7 @@
 (defn reset [url]
   (let [response (client/post url)
         res (Integer/parseInt (:body response))]
-    (println res)
+    (println (str "Initial balance " res))
     res))
 
 (defn reset-redis []
