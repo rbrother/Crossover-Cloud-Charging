@@ -6,21 +6,33 @@ const DEFAULT_BALANCE = 100
 const memcachedClient = new memcached(`${process.env.ENDPOINT}:${process.env.PORT}`)
 
 exports.chargeRequestMemcached = async function (input) {
-    var remainingBalance = await getBalanceMemcached(KEY)
+    return await tryChargeMemcached()
+}
+
+async function tryChargeMemcached() {
+    var memcachedResponse = await getBalanceMemcached(KEY)
+    var remainingBalance = memcachedResponse[KEY]
+    var casToken = memcachedResponse.cas
     const charges = getCharges()
     const isAuthorized = authorizeRequest(remainingBalance, charges)
-    if (!authorizeRequest(remainingBalance, charges)) {
+    if (!isAuthorized) {
         return {
             remainingBalance,
             isAuthorized,
             charges: 0,
         }
     }
-    remainingBalance = await chargeMemcached(KEY, charges)
-    return {
-        remainingBalance,
-        charges,
-        isAuthorized,
+    const newBalance = remainingBalance - charges
+    const success = await memcachedCAS(KEY, newBalance, casToken)
+    if (success === true) {
+        return {
+            remainingBalance : newBalance,
+            charges,
+            isAuthorized,
+        }
+    } else {
+      // Some other client got in between: retry
+      return await tryChargeMemcached()
     }
 }
 
@@ -34,25 +46,25 @@ function getCharges() {
 
 async function getBalanceMemcached(key) {
     return new Promise((resolve, reject) => {
-        memcachedClient.get(key, (err, data) => {
+        memcachedClient.gets(key, (err, data) => {
             if (err) {
                 reject(err)
             }
             else {
-                resolve(Number(data))
+                resolve(data)
             }
         })
     })
 }
 
-async function chargeMemcached(key, charges) {
+async function memcachedCAS(key, value, token) {
     return new Promise((resolve, reject) => {
-        memcachedClient.decr(key, charges, (err, result) => {
+        memcachedClient.cas(key, value, token, 10000, (err, success) => {
             if (err) {
                 reject(err)
             }
             else {
-                return resolve(Number(result))
+                resolve(success)
             }
         })
     })
