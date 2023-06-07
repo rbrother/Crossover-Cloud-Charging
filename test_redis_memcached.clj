@@ -70,5 +70,7 @@
                 {:charges 0, :remainingBalance 0, :isAuthorized false})))
     (println "ASSERTIONS PASS")))
 
-(test-system "redis" reset-redis charge-request-redis)
-(test-system "memcached" reset-memcached charge-request-memcached)
+(while true
+  (do
+    (test-system "redis" reset-redis charge-request-redis)
+    (test-system "memcached" reset-memcached charge-request-memcached)))
